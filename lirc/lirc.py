@@ -1,5 +1,6 @@
 from subprocess import call
 import re
+import shlex
 
 class Lirc:
 	"""
@@ -8,36 +9,43 @@ class Lirc:
 	codes = {}
 	
 	def __init__(self, conf):
-		# Open the config file
-		self.conf = open(conf, "rb")
-		
 		# Parse the config file
-		self.parse()
-		self.conf.close()
+		self.parse(conf)
 		
 
 	def devices(self):
 		"""
-		Return a list of devices.
+		Return a dict of devices.
 		"""
-		return self.codes.keys()
+		return self.codes
 	
 	
-	def parse(self):
+	def parse(self,conf):
 		"""
 		Parse the lircd.conf config file and create a dictionary.
 		"""
 		remote_name = None
 		code_section = False
+		print "Opening %s" % conf
+		conf = open(conf, "rb")
 		
-		for line in self.conf:
+		for line in conf:
 			# Convert tabs to spaces
 			l = line.replace('\t',' ')
-
+			#print l
 			# Skip comments
 			if re.match('^\s*#',line):
 				continue
 			
+			split_l =  shlex.split(l)
+
+			if split_l and split_l[0] == 'include':
+				#print "Found an include for %s" % split_l[1]
+				filename = split_l[1].strip()
+				
+				self.parse(split_l[1])
+
+
 			# Look for a 'begin remote' line
 			if l.strip()=='begin remote':
 				# Got the start of a remote definition
@@ -64,12 +72,16 @@ class Lirc:
 				# Got a code key/value pair... probably
 				fields = l.strip().split(' ')
 				self.codes[remote_name][fields[0]] = fields[-1]
+ 		conf.close()
+
 
 			
 	def send_once(self, device_id, message):
 		"""
 		Send single call to IR LED.
 		"""
+
+		#print "about to call 'irsend -d /dev/lircd1 SEND_ONCE %s %s'" % (device_id, message)
 		call(['irsend', 'SEND_ONCE', device_id, message])
 
 				
